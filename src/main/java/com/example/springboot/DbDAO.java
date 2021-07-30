@@ -23,4 +23,8 @@ public class DbDAO {
 	public List<Integer> findAll() {
 		return template.query("select * from test2", (rs, rowNum) -> rs.getInt("id"));
 	}
+
+	public List<Integer> findAllFromTest() {
+		return template.query("select * from test2", (rs, rowNum) -> rs.getInt("id"));
+	}
 }

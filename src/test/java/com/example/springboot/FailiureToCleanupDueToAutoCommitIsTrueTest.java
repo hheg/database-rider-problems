@@ -50,6 +50,8 @@ public class FailiureToCleanupDueToAutoCommitIsTrueTest {
 	
 	@AfterAll
 	static void cleanup() {
+		List<Integer> allFromTest = dao2.findAllFromTest();
+		assertThat(allFromTest).hasSameElementsAs(List.of());
 		List<Integer> all = dao2.findAll();
 		assertThat(all).hasSameElementsAs(List.of());
 	}
