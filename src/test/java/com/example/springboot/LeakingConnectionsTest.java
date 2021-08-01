@@ -65,7 +65,7 @@ import com.zaxxer.hikari.HikariDataSource;
 @SpringBootTest
 @Testcontainers
 @DBRider()
-@DBUnit(caseInsensitiveStrategy = Orthography.LOWERCASE, cacheConnection = false)
+@DBUnit(caseInsensitiveStrategy = Orthography.LOWERCASE, cacheConnection = false, leakHunter = true)
 public class LeakingConnectionsTest {
 
 	static DataSource dataSource2;
