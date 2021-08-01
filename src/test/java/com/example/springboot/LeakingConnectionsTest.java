@@ -4,8 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.PrintWriter;
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.CallableStatement;
@@ -22,17 +20,15 @@ import java.sql.SQLXML;
 import java.sql.Savepoint;
 import java.sql.Statement;
 import java.sql.Struct;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
-import java.util.stream.Stream;
 
 import javax.sql.DataSource;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Order;
@@ -72,6 +68,8 @@ import com.zaxxer.hikari.HikariDataSource;
 @DBUnit(caseInsensitiveStrategy = Orthography.LOWERCASE, cacheConnection = false)
 public class LeakingConnectionsTest {
 
+	static DataSource dataSource2;
+	
 	@Autowired
 	private DbDAO dao;
 	
@@ -115,16 +113,22 @@ public class LeakingConnectionsTest {
 	// This should fail since we have 1,3 in the DB and the expected.yml is expecting 1,2
 	@ExpectedDataSet("expected.yml")
 	void afterEach() {
-
+		dataSource2 = dataSource;
+	}
+	
+	@AfterAll
+	static void afterAll() {
+		WrappingDataSource wrappingDataSource = (WrappingDataSource) dataSource2;
+		assertEquals(0, wrappingDataSource.liveConnections.get());
 	}
 
 	@Test
 	@Order(1)
 	void test1() {
-		assertEquals(1, dao.update(3));
+		assertEquals(1, dao.update(2));
 		assertTrue(dataSource instanceof WrappingDataSource);
 		WrappingDataSource wrappingDataSource = (WrappingDataSource) dataSource;
-		assertEquals(1, wrappingDataSource.liveConnections.get());
+		assertEquals(0, wrappingDataSource.liveConnections.get());
 	}
 
 
@@ -134,7 +138,7 @@ public class LeakingConnectionsTest {
 		assertEquals(1, dao.update(2));
 		assertTrue(dataSource instanceof WrappingDataSource);
 		WrappingDataSource wrappingDataSource = (WrappingDataSource) dataSource;
-		assertEquals(1, wrappingDataSource.liveConnections.get());
+		assertEquals(0, wrappingDataSource.liveConnections.get());
 	}
 	
 
@@ -144,7 +148,7 @@ public class LeakingConnectionsTest {
 		assertEquals(1, dao.update(2));
 		assertTrue(dataSource instanceof WrappingDataSource);
 		WrappingDataSource wrappingDataSource = (WrappingDataSource) dataSource;
-		assertEquals(1, wrappingDataSource.liveConnections.get());
+		assertEquals(0, wrappingDataSource.liveConnections.get());
 	}
 	
 	private static class WrappingDataSource implements DataSource {
@@ -174,14 +178,16 @@ public class LeakingConnectionsTest {
 
 		@Override
 		public Connection getConnection() throws SQLException {
-			liveConnections.incrementAndGet();
-			return new WrappingConnection(delegate.getConnection(), this);
+			WrappingConnection wrappingConnection = new WrappingConnection(delegate.getConnection(), this);
+			new Exception("getConnection "+wrappingConnection+ " nr:"+liveConnections.incrementAndGet()).printStackTrace(System.out);
+			return wrappingConnection;
 		}
 
 		@Override
 		public Connection getConnection(String username, String password) throws SQLException {
-			liveConnections.incrementAndGet();
-			return new WrappingConnection(delegate.getConnection(username, password), this);
+			WrappingConnection wrappingConnection = new WrappingConnection(delegate.getConnection(username, password), this);
+			new Exception("getConnection(username, password) "+ wrappingConnection+ " nr:" + liveConnections.incrementAndGet()).printStackTrace(System.out);
+			return wrappingConnection;
 		}
 
 		@Override
@@ -205,8 +211,8 @@ public class LeakingConnectionsTest {
 		}
 
 
-		public void closeConnection() {
-			liveConnections.decrementAndGet();
+		public int closeConnection() {
+			return liveConnections.decrementAndGet();
 		}
 	}
 	
@@ -271,8 +277,8 @@ public class LeakingConnectionsTest {
 		}
 
 		@Override
-		public void close() throws SQLException {
-			datasource.closeConnection();
+		public void close() throws SQLException {			
+			new Exception(this + ".close() left checkedout:"+ datasource.closeConnection()).printStackTrace(System.out);
 			delegate.close();
 		}
 
